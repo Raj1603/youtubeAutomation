@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Processing Workflow</title>
+    
+    <!-- Google API Scripts for Google Drive Picker -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --background: #ffffff;
+            --foreground: #262626;
+            --card: #ffffff;
+            --card-foreground: #262626;
+            --primary: #030213;
+            --primary-foreground: #ffffff;
+            --muted: #ececf0;
+            --muted-foreground: #717182;
+            --border: rgba(0, 0, 0, 0.1);
+            --destructive: #d4183d;
+            --destructive-foreground: #ffffff;
+            --success: #16a34a;
+            --success-foreground: #ffffff;
+            --warning: #d97706;
+            --warning-foreground: #ffffff;
+            --radius: 0.625rem;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: var(--foreground);
+            line-height: 1.5;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+
+        .container {
+            max-width: 56rem;
+            margin: 0 auto;
+        }
+
+        /* Header Styles */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 4rem;
+            height: 4rem;
+            background-color: var(--primary);
+            border-radius: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .header-icon svg {
+            width: 2rem;
+            height: 2rem;
+            stroke: var(--primary-foreground);
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--muted-foreground);
+            font-size: 1rem;
+        }
+
+        /* Card Styles */
+        .card {
+            background: var(--card);
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(3, 2, 19, 0.3);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .card.selected {
+            border-color: var(--primary);
+            background: rgba(3, 2, 19, 0.02);
+            box-shadow: var(--shadow-md);
+        }
+
+        .card-content {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .card-icon {
+            flex-shrink: 0;
+            width: 3rem;
+            height: 3rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--muted);
+            transition: all 0.2s ease;
+        }
+
+        .card.selected .card-icon {
+            background: var(--primary);
+        }
+
+        .card-icon svg {
+            width: 1.5rem;
+            height: 1.5rem;
+            stroke: var(--muted-foreground);
+        }
+
+        .card.selected .card-icon svg {
+            stroke: var(--primary-foreground);
+        }
+
+        .card-body {
+            flex: 1;
+        }
+
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .card-description {
+            color: var(--muted-foreground);
+            margin-bottom: 0.75rem;
+        }
+
+        /* Input Section */
+        .input-section {
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .card.selected .input-section {
+            display: block;
+        }
+
+        /* Button Styles */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: calc(var(--radius) - 2px);
+            font-size: 1rem;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            gap: 0.5rem;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: var(--primary-foreground);
+            height: 3rem;
+            font-size: 1rem;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: rgba(3, 2, 19, 0.9);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--foreground);
+            border: 1px solid var(--border);
+        }
+
+        .btn-outline:hover:not(:disabled) {
+            background: var(--muted);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--foreground);
+        }
+
+        .btn-ghost:hover:not(:disabled) {
+            background: var(--muted);
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        /* File Display */
+        .file-display {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--muted);
+            border-radius: calc(var(--radius) - 2px);
+            margin-top: 0.75rem;
+        }
+
+        .file-display-icon {
+            width: 1.25rem;
+            height: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .file-display-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-display-name {
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .file-display-size {
+            color: var(--muted-foreground);
+            font-size: 0.875rem;
+        }
+
+        .file-display-clear {
+            flex-shrink: 0;
+            width: 2rem;
+            height: 2rem;
+            padding: 0.25rem;
+        }
+
+        /* Input Styles */
+        .input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            font-size: 1rem;
+            border: 1px solid var(--border);
+            border-radius: calc(var(--radius) - 2px);
+            background: #f3f3f5;
+            transition: all 0.2s ease;
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: white;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-icons {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .input-icon {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .input-error {
+            color: var(--destructive);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Alert Styles */
+        .alert {
+            padding: 1rem;
+            border-radius: var(--radius);
+            border: 2px solid;
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
+
+        .alert-icon {
+            width: 1rem;
+            height: 1rem;
+            flex-shrink: 0;
+            margin-top: 0.125rem;
+        }
+
+        .alert-success {
+            background: #f0fdf4;
+            border-color: var(--success);
+            color: #166534;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            border-color: var(--destructive);
+            color: #991b1b;
+        }
+
+        .alert-warning {
+            background: #fffbeb;
+            border-color: var(--warning);
+            color: #92400e;
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        /* Submit Section */
+        .submit-section {
+            background: var(--card);
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .submit-helper {
+            text-align: center;
+            color: var(--muted-foreground);
+            margin-top: 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .footer-text {
+            color: var(--muted-foreground);
+            font-size: 0.875rem;
+        }
+
+        .footer-code {
+            background: var(--muted);
+            padding: 0.125rem 0.5rem;
+            border-radius: 0.25rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+
+        /* Loading Spinner */
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+
+        /* Hidden Elements */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Responsive */
+        @media (min-width: 768px) {
+            body {
+                padding: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-icon">
+                <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+            </div>
+            <h1>Video Processing Workflow</h1>
+            <p class="subtitle">Select your video source and start the ingestion workflow</p>
+        </div>
+
+        <!-- Local File Upload -->
+        <div class="card" id="localCard" onclick="selectMethod('local')">
+            <div class="card-content">
+                <div class="card-icon">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title">Upload Local Video File</div>
+                    <p class="card-description">Select a video file from your computer</p>
+                    
+                    <div class="input-section">
+                        <input type="file" id="fileInput" accept="video/*" style="display: none;" onchange="handleFileSelect(event)">
+                        <button class="btn btn-outline btn-full" id="browseBtn" onclick="document.getElementById('fileInput').click(); event.stopPropagation();">
+                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                            </svg>
+                            Browse Files
+                        </button>
+                        <div id="fileDisplay" class="file-display hidden">
+                            <svg class="file-display-icon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="stroke: var(--primary);">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                            </svg>
+                            <div class="file-display-info">
+                                <div class="file-display-name" id="fileName"></div>
+                                <div class="file-display-size" id="fileSize"></div>
+                            </div>
+                            <button class="btn btn-ghost file-display-clear" onclick="clearFile(); event.stopPropagation();">
+                                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Google Drive -->
+        <div class="card" id="driveCard" onclick="selectMethod('googleDrive')">
+            <div class="card-content">
+                <div class="card-icon">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" />
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title">Select from Google Drive</div>
+                    <p class="card-description">Choose a video file from your Google Drive</p>
+                    
+                    <div class="input-section">
+                        <div id="driveAlert" class="alert alert-warning">
+                            <svg class="alert-icon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                            </svg>
+                            <div class="alert-content">
+                                <strong>Setup Required:</strong> Replace <code class="footer-code">GOOGLE_API_KEY</code>, <code class="footer-code">GOOGLE_CLIENT_ID</code>, and <code class="footer-code">GOOGLE_APP_ID</code> in the JavaScript section with your Google API credentials.
+                            </div>
+                        </div>
+                        <button class="btn btn-outline btn-full" id="driveBtn" onclick="handleGoogleDrive(); event.stopPropagation();" disabled>
+                            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 0 0 4.5 4.5H18a3.75 3.75 0 0 0 1.332-7.257 3 3 0 0 0-3.758-3.848 5.25 5.25 0 0 0-10.233 2.33A4.502 4.502 0 0 0 2.25 15Z" />
+                            </svg>
+                            <span id="driveBtnText">Loading Google API...</span>
+                        </button>
+                        <div id="driveFileDisplay" class="file-display hidden">
+                            <svg class="file-display-icon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="stroke: var(--primary);">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                            </svg>
+                            <div class="file-display-info">
+                                <div class="file-display-name" id="driveFileName"></div>
+                                <div class="file-display-size">From Google Drive</div>
+                            </div>
+                            <button class="btn btn-ghost file-display-clear" onclick="clearDrive(); event.stopPropagation();">
+                                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- URL Input -->
+        <div class="card" id="urlCard" onclick="selectMethod('url')">
+            <div class="card-content">
+                <div class="card-icon">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title">Paste Video URL</div>
+                    <p class="card-description">Enter a direct link to a video file</p>
+                    
+                    <div class="input-section">
+                        <div class="input-wrapper">
+                            <input 
+                                type="url" 
+                                class="input" 
+                                id="urlInput" 
+                                placeholder="https://example.com/video.mp4"
+                                oninput="handleUrlInput(event)"
+                                onfocus="urlFocused = true"
+                                onblur="handleUrlBlur()"
+                                onclick="event.stopPropagation()"
+                                style="padding-right: 4rem;"
+                            >
+                            <div class="input-icons">
+                                <svg id="urlValidIcon" class="input-icon hidden" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="stroke: var(--success); width: 1rem; height: 1rem;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                </svg>
+                                <button class="btn btn-ghost" id="urlClearBtn" onclick="clearUrl(); event.stopPropagation();" style="padding: 0.25rem; height: 1.75rem; width: 1.75rem; display: none;">
+                                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="urlError" class="input-error hidden">
+                            Please enter a valid URL starting with http:// or https://
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Alert -->
+        <div id="statusAlert" class="alert hidden">
+            <svg class="alert-icon" id="statusIcon" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"></svg>
+            <div class="alert-content" id="statusMessage"></div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="submit-section">
+            <button class="btn btn-primary btn-full" id="submitBtn" onclick="handleSubmit()" disabled>
+                <span id="submitBtnText">Start Workflow</span>
+            </button>
+            <p class="submit-helper" id="submitHelper">Please select a video source above to continue</p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p class="footer-text">
+                <strong>Note:</strong> Replace <code class="footer-code">YOUR_N8N_WEBHOOK_URL_HERE</code> in the JavaScript section with your actual n8n webhook endpoint.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURATION ====================
+        // TODO: Replace these with your actual credentials
+        const N8N_WEBHOOK_URL = 'https://rajicloud.app.n8n.cloud/webhook/dataIngestion';
+        const GOOGLE_API_KEY = 'YOUR_GOOGLE_API_KEY_HERE';
+        const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID_HERE';
+        const GOOGLE_APP_ID = 'YOUR_GOOGLE_APP_ID_HERE';
+
+        // ==================== STATE ====================
+        let selectedMethod = null;
+        let localFile = null;
+        let googleDriveFileId = '';
+        let googleDriveFileName = '';
+        let videoUrl = '';
+        let isSubmitting = false;
+        let urlFocused = false;
+        let isGoogleApiLoaded = false;
+
+        // ==================== UTILITY FUNCTIONS ====================
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+        }
+
+        function isValidUrl(urlString) {
+            if (!urlString.trim()) return false;
+            try {
+                const url = new URL(urlString);
+                return url.protocol === 'http:' || url.protocol === 'https:';
+            } catch {
+                return false;
+            }
+        }
+
+        function isReadyToSubmit() {
+            if (selectedMethod === 'local') return localFile !== null;
+            if (selectedMethod === 'googleDrive') return googleDriveFileId !== '';
+            if (selectedMethod === 'url') return videoUrl.trim() !== '' && isValidUrl(videoUrl);
+            return false;
+        }
+
+        function updateSubmitButton() {
+            const submitBtn = document.getElementById('submitBtn');
+            const submitHelper = document.getElementById('submitHelper');
+            
+            if (isReadyToSubmit()) {
+                submitBtn.disabled = false;
+                submitHelper.classList.add('hidden');
+            } else {
+                submitBtn.disabled = true;
+                if (!selectedMethod) {
+                    submitHelper.classList.remove('hidden');
+                    submitHelper.textContent = 'Please select a video source above to continue';
+                } else {
+                    submitHelper.classList.remove('hidden');
+                    submitHelper.textContent = 'Please complete the selected input method';
+                }
+            }
+        }
+
+        function showStatus(type, message) {
+            const statusAlert = document.getElementById('statusAlert');
+            const statusIcon = document.getElementById('statusIcon');
+            const statusMessage = document.getElementById('statusMessage');
+
+            statusAlert.classList.remove('hidden', 'alert-success', 'alert-error');
+            
+            if (type === 'success') {
+                statusAlert.classList.add('alert-success');
+                statusIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />';
+            } else if (type === 'error') {
+                statusAlert.classList.add('alert-error');
+                statusIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />';
+            }
+
+            statusMessage.textContent = message;
+        }
+
+        function hideStatus() {
+            document.getElementById('statusAlert').classList.add('hidden');
+        }
+
+        // ==================== METHOD SELECTION ====================
+        function selectMethod(method) {
+            // Clear previous selection
+            const cards = document.querySelectorAll('.card');
+            cards.forEach(card => card.classList.remove('selected'));
+
+            // Clear all data
+            localFile = null;
+            googleDriveFileId = '';
+            googleDriveFileName = '';
+            videoUrl = '';
+            
+            // Reset file input displays
+            document.getElementById('fileDisplay').classList.add('hidden');
+            document.getElementById('driveFileDisplay').classList.add('hidden');
+            document.getElementById('urlInput').value = '';
+            document.getElementById('urlValidIcon').classList.add('hidden');
+            document.getElementById('urlClearBtn').style.display = 'none';
+            document.getElementById('urlError').classList.add('hidden');
+
+            // Set new selection
+            selectedMethod = method;
+            
+            if (method === 'local') {
+                document.getElementById('localCard').classList.add('selected');
+            } else if (method === 'googleDrive') {
+                document.getElementById('driveCard').classList.add('selected');
+            } else if (method === 'url') {
+                document.getElementById('urlCard').classList.add('selected');
+            }
+
+            hideStatus();
+            updateSubmitButton();
+        }
+
+        // ==================== LOCAL FILE UPLOAD ====================
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                localFile = file;
+                
+                document.getElementById('fileName').textContent = file.name;
+                document.getElementById('fileSize').textContent = formatFileSize(file.size);
+                document.getElementById('fileDisplay').classList.remove('hidden');
+                document.getElementById('browseBtn').classList.add('hidden');
+                
+                if (selectedMethod !== 'local') {
+                    selectMethod('local');
+                }
+                
+                updateSubmitButton();
+            }
+        }
+
+        function clearFile() {
+            localFile = null;
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileDisplay').classList.add('hidden');
+            document.getElementById('browseBtn').classList.remove('hidden');
+            updateSubmitButton();
+        }
+
+        // ==================== GOOGLE DRIVE ====================
+        function initGoogleApi() {
+            const needsCredentials = 
+                GOOGLE_API_KEY === 'YOUR_GOOGLE_API_KEY_HERE' ||
+                GOOGLE_CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID_HERE' ||
+                GOOGLE_APP_ID === 'YOUR_GOOGLE_APP_ID_HERE';
+
+            if (needsCredentials) {
+                return;
+            }
+
+            // Check if Google API is loaded
+            const checkInterval = setInterval(() => {
+                if (window.google && window.gapi) {
+                    clearInterval(checkInterval);
+                    gapi.load('picker', () => {
+                        isGoogleApiLoaded = true;
+                        const driveBtn = document.getElementById('driveBtn');
+                        driveBtn.disabled = false;
+                        document.getElementById('driveBtnText').textContent = 'Select from Google Drive';
+                        document.getElementById('driveAlert').classList.add('hidden');
+                    });
+                }
+            }, 100);
+
+            // Timeout after 10 seconds
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                if (!isGoogleApiLoaded) {
+                    document.getElementById('driveBtnText').textContent = 'Failed to load Google API';
+                }
+            }, 10000);
+        }
+
+        function createPicker(accessToken) {
+            const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
+                .setMimeTypes('video/mp4,video/quicktime,video/x-msvideo,video/webm,video/*')
+                .setMode(google.picker.DocsViewMode.LIST);
+
+            const picker = new google.picker.PickerBuilder()
+                .setAppId(GOOGLE_APP_ID)
+                .setOAuthToken(accessToken)
+                .addView(view)
+                .setDeveloperKey(GOOGLE_API_KEY)
+                .setCallback((data) => {
+                    if (data.action === google.picker.Action.PICKED) {
+                        const file = data.docs[0];
+                        googleDriveFileId = file.id;
+                        googleDriveFileName = file.name;
+                        
+                        document.getElementById('driveFileName').textContent = file.name;
+                        document.getElementById('driveFileDisplay').classList.remove('hidden');
+                        document.getElementById('driveBtn').classList.add('hidden');
+                        
+                        updateSubmitButton();
+                    }
+                    document.getElementById('driveBtnText').textContent = 'Select from Google Drive';
+                })
+                .build();
+
+            picker.setVisible(true);
+        }
+
+        function handleGoogleDrive() {
+            if (!isGoogleApiLoaded) {
+                showStatus('error', 'Google API is still loading. Please try again in a moment.');
+                return;
+            }
+
+            document.getElementById('driveBtnText').textContent = 'Loading Picker...';
+
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/drive.readonly',
+                callback: (response) => {
+                    if (response.error) {
+                        showStatus('error', 'Failed to authenticate with Google Drive');
+                        document.getElementById('driveBtnText').textContent = 'Select from Google Drive';
+                        return;
+                    }
+                    createPicker(response.access_token);
+                },
+            });
+
+            tokenClient.requestAccessToken();
+        }
+
+        function clearDrive() {
+            googleDriveFileId = '';
+            googleDriveFileName = '';
+            document.getElementById('driveFileDisplay').classList.add('hidden');
+            document.getElementById('driveBtn').classList.remove('hidden');
+            updateSubmitButton();
+        }
+
+        // ==================== URL INPUT ====================
+        function handleUrlInput(event) {
+            videoUrl = event.target.value;
+            const validIcon = document.getElementById('urlValidIcon');
+            const clearBtn = document.getElementById('urlClearBtn');
+            const errorMsg = document.getElementById('urlError');
+
+            if (videoUrl) {
+                clearBtn.style.display = 'block';
+                if (isValidUrl(videoUrl)) {
+                    validIcon.classList.remove('hidden');
+                    errorMsg.classList.add('hidden');
+                } else {
+                    validIcon.classList.add('hidden');
+                }
+            } else {
+                clearBtn.style.display = 'none';
+                validIcon.classList.add('hidden');
+                errorMsg.classList.add('hidden');
+            }
+
+            if (videoUrl.trim() && selectedMethod !== 'url') {
+                selectMethod('url');
+            }
+
+            updateSubmitButton();
+        }
+
+        function handleUrlBlur() {
+            urlFocused = false;
+            const errorMsg = document.getElementById('urlError');
+            
+            if (videoUrl && !isValidUrl(videoUrl)) {
+                errorMsg.classList.remove('hidden');
+            }
+        }
+
+        function clearUrl() {
+            videoUrl = '';
+            document.getElementById('urlInput').value = '';
+            document.getElementById('urlValidIcon').classList.add('hidden');
+            document.getElementById('urlClearBtn').style.display = 'none';
+            document.getElementById('urlError').classList.add('hidden');
+            updateSubmitButton();
+        }
+
+        // ==================== FORM SUBMISSION ====================
+        async function handleSubmit() {
+            if (!isReadyToSubmit()) {
+                showStatus('error', 'Please select a video source before starting the workflow.');
+                return;
+            }
+
+            isSubmitting = true;
+            hideStatus();
+
+            const submitBtn = document.getElementById('submitBtn');
+            const submitBtnText = document.getElementById('submitBtnText');
+            
+            submitBtn.disabled = true;
+            submitBtnText.innerHTML = `
+                <svg class="spinner" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="margin-right: 0.5rem;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                Processing...
+            `;
+
+            try {
+                let response;
+
+                if (selectedMethod === 'local' && localFile) {
+                    // Send local file as multipart/form-data
+                    const formData = new FormData();
+                    formData.append('videoFile', localFile);
+                    formData.append('inputMethod', 'local');
+
+                    response = await fetch(N8N_WEBHOOK_URL, {
+                        method: 'POST',
+                        body: formData,
+                    });
+                } else if (selectedMethod === 'googleDrive') {
+                    // Send Google Drive file ID as JSON
+                    response = await fetch(N8N_WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            inputMethod: 'googleDrive',
+                            googleDriveFileId: googleDriveFileId,
+                            fileName: googleDriveFileName,
+                        }),
+                    });
+                } else if (selectedMethod === 'url') {
+                    // Send video URL as JSON
+                    response = await fetch(N8N_WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            inputMethod: 'url',
+                            videoUrl: videoUrl,
+                        }),
+                    });
+                }
+
+                if (response && response.ok) {
+                    let data = {};
+                    try {
+                        data = await response.json();
+                    } catch (e) {
+                        // Response might not be JSON
+                    }
+
+                    showStatus('success', data.message || 'Workflow started successfully! Your video is being processed.');
+                    
+                    // Reset form after 3 seconds
+                    setTimeout(() => {
+                        selectMethod(null);
+                        selectedMethod = null;
+                        const cards = document.querySelectorAll('.card');
+                        cards.forEach(card => card.classList.remove('selected'));
+                        hideStatus();
+                    }, 3000);
+                } else {
+                    throw new Error(response ? `Server error: ${response.status}` : 'Unknown error');
+                }
+            } catch (error) {
+                showStatus('error', error.message || 'Failed to start workflow. Please check your connection and try again.');
+            } finally {
+                isSubmitting = false;
+                submitBtn.disabled = false;
+                submitBtnText.textContent = 'Start Workflow';
+                updateSubmitButton();
+            }
+        }
+
+        // ==================== INITIALIZATION ====================
+        window.addEventListener('load', () => {
+            initGoogleApi();
+            updateSubmitButton();
+        });
+    </script>
+</body>
+</html>

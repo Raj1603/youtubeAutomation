@@ -1,0 +1,22 @@
+{
+  "name": "video-clip-transcription-service",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Service to process video clips with transcription and subtitles",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cloudinary": "^1.41.0",
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
